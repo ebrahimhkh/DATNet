@@ -16,24 +16,23 @@ public class World {
         init();
     }
 
-    private int width;
-    private int height;
-    private int maxVelocityOfAgents_x;
+    private int width;                      // The width of this world. it will defined randomly in Initializing time of the world.
+    private int height;                     // The height of this world. it will defined randomly in Initializing time of the world.
+    private int maxVelocityOfAgents_x;      //
     private int maxVelocityOfAgents_y;
     private int bignessFactor;
     private Agent[] agents;
     private int agentsCount;
 
-    //services that are accessible in this world
-    private ServiceType[] serviceTypes;
+    private ServiceType[] serviceTypes;     // The services that are accessible in this world
 
-    // ids that will be traced in simulation time
-    private int[] traceAgentIds;
+    private int[] traceAgentIds;            // Ids that will be traced in simulation time, in the MainDiagram window
 
     private List<WorldHistory> histories;
 
     //============================//============================//============================
     private void init() {
+
 
         totalServiceCount =
                 falseNegative =
@@ -42,9 +41,11 @@ public class World {
                                         truePositive = 0;
         //============================
 
+        // Identifying the agents that we want to trace in Main diagram.
         traceAgentIds = new int[]{1, 4, 9, 10, 11, 12, 13};
 
-        Globals.WORLD_TIME = 0;
+        // Resetting the timer of the world.
+        Globals.WORLD_TIMER = 0;
 
         histories = new ArrayList<WorldHistory>();
 
@@ -58,7 +59,7 @@ public class World {
         maxVelocityOfAgents_x = (int) (width * Config.WORLD_MAX_VELOCITY_RATIO_X);
         maxVelocityOfAgents_y = (int) (height * Config.WORLD_MAX_VELOCITY_RATIO_Y);
 
-        agentsCount = Globals.RANDOM.nextInt(Config.WORLD_MAX_AGENT - Config.WORLD_MIN_AGENT + 1) + Config.WORLD_MIN_AGENT;
+        agentsCount = Globals.profiler.populationCount;
         agents = new Agent[agentsCount];
 
         //============================ Services
@@ -75,13 +76,19 @@ public class World {
                         + " | agentsCount: " + agentsCount
 
         );
-        int id = 0;
-        for (int i = 0, agentsLength = agents.length; i < agentsLength; i++) {
-            agents[i] = new Agent(this, ++id);
 
+        int id = 0;
+        int thisBunchFinished = Globals.profiler.CurrentBunch().getBunchCount();
+        for (int i = 0 ; i < Globals.profiler.populationCount; i++) {
+            if(i >= thisBunchFinished)
+            {
+                Globals.profiler.NextBunch();
+                thisBunchFinished = thisBunchFinished + Globals.profiler.CurrentBunch().getBunchCount();
+            }
+            agents[i] = new Agent(this, ++id);
             agents[i].init();
 
-            // trace
+            // if agentId is in 'traceAgentIds', it will set as traceable
             if (isTraceable(i)) {
                 agents[i].setAsTraceable();
             }
@@ -113,28 +120,41 @@ public class World {
 
     public void run() {
 
+        boolean showMainWindow = Config.DRAWING_SHOW_MAIN_WINDOW;           // Whether show MainWindow or not.
+        boolean showDiagramWindow = Config.DRAWING_SHOW_DIAGRAM_WINDOW;     // Whether show DrawingWindow or not.
+
         //============================ Initializing Main Drawing Windows
         MainDrawingWindow mainWindow = new MainDrawingWindow(this);
-        JFrame mainFrame = new JFrame();
-        mainFrame.add(mainWindow);
-        mainFrame.setExtendedState(mainFrame.getExtendedState() | JFrame.MAXIMIZED_BOTH);
-        mainFrame.setMinimumSize(new Dimension(this.width, this.height));
-        mainFrame.setVisible(true);
 
+        if (showMainWindow) {
+            JFrame mainFrame = new JFrame();
+            mainFrame.add(mainWindow);
+            mainFrame.setExtendedState(mainFrame.getExtendedState() | JFrame.MAXIMIZED_BOTH);
+            mainFrame.setMinimumSize(new Dimension(this.width, this.height));
+            mainFrame.setVisible(true);
+        }
         //============================ Initializing Diagram Drawing Windows
         DiagramDrawingWindow diagramWindow = new DiagramDrawingWindow(this);
-        JFrame diagramFrame = new JFrame();
-        diagramFrame.add(diagramWindow);
-        diagramFrame.setExtendedState(diagramFrame.getExtendedState() | JFrame.MAXIMIZED_BOTH);
-        diagramFrame.setMinimumSize(new Dimension(this.width, this.height));
-        diagramFrame.setVisible(true);
+        if (showDiagramWindow) {
+            JFrame diagramFrame = new JFrame();
+            diagramFrame.add(diagramWindow);
+            diagramFrame.setExtendedState(diagramFrame.getExtendedState() | JFrame.MAXIMIZED_BOTH);
+            diagramFrame.setMinimumSize(new Dimension(this.width, this.height));
+            diagramFrame.setVisible(true);
+        }
 
-
-        // Main loop of run in a world
-        for (; Globals.WORLD_TIME < Config.WORLD_RUN_TIME; Globals.WORLD_TIME++) {
+        // Main loop of running in a world
+        for (; Globals.WORLD_TIMER < Config.WORLD_LIFE_TIME; Globals.WORLD_TIMER++) {
 
             for (Agent agent : agents) {
-                agent.updateLocation();
+                switch (Config.MOVEMENT_MODE) {
+                    case FreeMovement:
+                        agent.updateLocation();
+                        break;
+                    case TravelBasedOnMap:
+                        agent.travel();
+                        break;
+                }
             }
 
             for (Agent agent : agents) {
@@ -214,7 +234,7 @@ public class World {
                 recordedServices += agent.getTrust().getHistorySize();
             }
 
-            System.out.println("-------------------------\t\t\t\t\tcurrentTime: " + Globals.WORLD_TIME);
+            System.out.println("-------------------------\t\t\t\t\tcurrentTime: " + Globals.WORLD_TIMER);
             System.out.println("  totalServiceCount    : " + totalServiceCount);
             System.out.println("  honestServiceCount   : " + honestServiceCount + " >  " + (float) honestServiceCount / totalServiceCount);
             System.out.println("  dishonestServiceCount: " + dishonestServiceCount + " >  " + (float) dishonestServiceCount / totalServiceCount);
@@ -223,19 +243,22 @@ public class World {
 
             histories.add(new WorldHistory(totalServiceCount, dishonestServiceCount, honestServiceCount));
 
-            mainWindow.repaint();
+            if (showMainWindow) {
+                mainWindow.repaint();
+            }
 
-            diagramWindow.repaint();
-
+            if (showDiagramWindow) {
+                diagramWindow.repaint();
+            }
             try {
-                Thread.sleep(500);
+                Thread.sleep(Config.WORLD_SLEEP_MILLISECOND);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
 
         try {
-            Thread.sleep(1000);
+            Thread.sleep(Config.WORLD_SLEEP_MILLISECOND);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

@@ -10,34 +10,18 @@ public class AgentCapacity {
         int worldBF = parentAgent.getWorld().getBignessFactor() / 4;
         int worldAC = parentAgent.getWorld().getAgentsCount();
 
-        int randPowerFactor;
-        int i = Globals.RANDOM.nextInt(100);
-        // %70 : 1-20
-        // %20 : 21-50
-        // %10 : 51-100
-        i = i < 70 ? 20 : i < 90 ? 50 : 100;
+        watchRadius = Globals.profiler.CurrentBunch().getWatchRadius() * worldBF;
 
-        randPowerFactor = Globals.RANDOM.nextInt(i) + 1;
+        watchListCapacity = Globals.profiler.CurrentBunch().getWatchListCapacity() * worldAC;
 
-        capPower = randPowerFactor;
+        concurrentDoingServiceCap = Globals.profiler.CurrentBunch().getConcurrentDoingServiceCap();
 
-        float capCoeff = (float) capPower / 100;
 
-        watchRadius = (int) (capCoeff * worldBF);
-
-        watchListCapacity = (int) (capCoeff * worldAC);
-
-        concurrentDoingServiceCap = watchListCapacity / 5;
-        if (concurrentDoingServiceCap < 1 && watchListCapacity > 2) {
-            concurrentDoingServiceCap = 1;
-        }
-
-        historyCap = watchListCapacity * 2;
-        historyServiceRecordCap = watchListCapacity;
+        historyCap = Globals.profiler.CurrentBunch().getHistoryCap();
+        historyServiceRecordCap = Globals.profiler.CurrentBunch().getHistoryServiceRecordCap();
 
         System.out.println(
-                " | capCoeff: " + capCoeff
-                        + " | watchRadius: " + watchRadius
+                          " | watchRadius: " + watchRadius
                         + " | watchListCap: " + watchListCapacity
                         + " | concurrentDoSerCap: " + concurrentDoingServiceCap
                         + " | historyCap: " + historyCap
